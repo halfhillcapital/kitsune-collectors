@@ -49,7 +49,6 @@ CREATE TABLE IF NOT EXISTS earnings_calendar (
     marketcap     DOUBLE PRECISION,
     event_name    TEXT,
     date          TIMESTAMPTZ,
-    timing        TEXT,
     eps_estimate  DOUBLE PRECISION,
     reported_eps  DOUBLE PRECISION,
     surprise_pct  DOUBLE PRECISION,

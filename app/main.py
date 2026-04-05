@@ -3,7 +3,10 @@ from __future__ import annotations
 import uvicorn
 from fastapi import FastAPI
 
+from app.config import setup_logging
 from app.jobs.scheduler import lifespan
+
+setup_logging()
 from app.routes.admin import router as admin_router
 from app.routes.calendars import router as calendars_router
 from app.routes.stocks import router as stocks_router

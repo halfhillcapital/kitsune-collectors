@@ -208,7 +208,6 @@ async def read_earnings_calendar(
             "marketcap": r["marketcap"],
             "event_name": r["event_name"],
             "date": r["date"].isoformat() if r["date"] else None,
-            "timing": r["timing"],
             "eps_estimate": r["eps_estimate"],
             "reported_eps": r["reported_eps"],
             "surprise_pct": r["surprise_pct"],
@@ -217,37 +216,33 @@ async def read_earnings_calendar(
     return result
 
 
-async def write_earnings_calendar(data: dict[date, dict[str, list[dict]]]) -> None:
+async def write_earnings_calendar(data: list[dict]) -> None:
     async with db.get_pool().acquire() as conn:
         async with conn.transaction():
-            for _day, companies in data.items():
-                for company, items in companies.items():
-                    for item in items:
-                        dt = _to_datetime(item.get("date"))
-                        await conn.execute(
-                            """
-                            INSERT INTO earnings_calendar
-                                (company, symbol, marketcap, event_name, date, timing,
-                                 eps_estimate, reported_eps, surprise_pct)
-                            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-                            ON CONFLICT (symbol, date) DO UPDATE SET
-                                company = EXCLUDED.company,
-                                marketcap = COALESCE(EXCLUDED.marketcap, earnings_calendar.marketcap),
-                                event_name = COALESCE(EXCLUDED.event_name, earnings_calendar.event_name),
-                                timing = COALESCE(EXCLUDED.timing, earnings_calendar.timing),
-                                eps_estimate = COALESCE(EXCLUDED.eps_estimate, earnings_calendar.eps_estimate),
-                                reported_eps = COALESCE(EXCLUDED.reported_eps, earnings_calendar.reported_eps),
-                                surprise_pct = COALESCE(EXCLUDED.surprise_pct, earnings_calendar.surprise_pct)
-                            """,
-                            company, item.get("symbol", ""),
-                            _to_float(item.get("marketcap")),
-                            item.get("event_name"),
-                            dt,
-                            item.get("timing"),
-                            _to_float(item.get("eps_estimate")),
-                            _to_float(item.get("reported_eps")),
-                            _to_float(item.get("surprise_pct")),
-                        )
+            for item in data:
+                dt = _to_datetime(item.get("date"))
+                await conn.execute(
+                    """
+                    INSERT INTO earnings_calendar
+                        (company, symbol, marketcap, event_name, date,
+                         eps_estimate, reported_eps, surprise_pct)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                    ON CONFLICT (symbol, date) DO UPDATE SET
+                        company = COALESCE(EXCLUDED.company, earnings_calendar.company),
+                        marketcap = COALESCE(EXCLUDED.marketcap, earnings_calendar.marketcap),
+                        event_name = COALESCE(EXCLUDED.event_name, earnings_calendar.event_name),
+                        eps_estimate = COALESCE(EXCLUDED.eps_estimate, earnings_calendar.eps_estimate),
+                        reported_eps = COALESCE(EXCLUDED.reported_eps, earnings_calendar.reported_eps),
+                        surprise_pct = COALESCE(EXCLUDED.surprise_pct, earnings_calendar.surprise_pct)
+                    """,
+                    item.get("company"), item.get("symbol", ""),
+                    _to_float(item.get("marketcap")),
+                    item.get("event_name"),
+                    dt,
+                    _to_float(item.get("eps_estimate")),
+                    _to_float(item.get("reported_eps")),
+                    _to_float(item.get("surprise_pct")),
+                )
 
 
 async def read_economics_calendar(
@@ -287,37 +282,36 @@ async def read_economics_calendar(
     return result
 
 
-async def write_economics_calendar(data: dict[date, list[dict]]) -> None:
+async def write_economics_calendar(data: list[dict]) -> None:
     async with db.get_pool().acquire() as conn:
         async with conn.transaction():
-            for _day, events in data.items():
-                for ev in events:
-                    event_name = ev.get("event")
-                    if not event_name:
-                        continue
-                    dt = _to_datetime(ev.get("date"))
-                    await conn.execute(
-                        """
-                        INSERT INTO economics_calendar
-                            (date, is_all_day, currency, impact, event, actual, forecast, previous)
-                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-                        ON CONFLICT (date, event) DO UPDATE SET
-                            is_all_day = EXCLUDED.is_all_day,
-                            currency = COALESCE(EXCLUDED.currency, economics_calendar.currency),
-                            impact = COALESCE(EXCLUDED.impact, economics_calendar.impact),
-                            actual = COALESCE(EXCLUDED.actual, economics_calendar.actual),
-                            forecast = COALESCE(EXCLUDED.forecast, economics_calendar.forecast),
-                            previous = COALESCE(EXCLUDED.previous, economics_calendar.previous)
-                        """,
-                        dt,
-                        ev.get("is_all_day", False),
-                        ev.get("currency"),
-                        ev.get("impact"),
-                        event_name,
-                        ev.get("actual"),
-                        ev.get("forecast"),
-                        ev.get("previous"),
-                    )
+            for ev in data:
+                event_name = ev.get("event")
+                if not event_name:
+                    continue
+                dt = _to_datetime(ev.get("date"))
+                await conn.execute(
+                    """
+                    INSERT INTO economics_calendar
+                        (date, is_all_day, currency, impact, event, actual, forecast, previous)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                    ON CONFLICT (date, event) DO UPDATE SET
+                        is_all_day = EXCLUDED.is_all_day,
+                        currency = COALESCE(EXCLUDED.currency, economics_calendar.currency),
+                        impact = COALESCE(EXCLUDED.impact, economics_calendar.impact),
+                        actual = COALESCE(EXCLUDED.actual, economics_calendar.actual),
+                        forecast = COALESCE(EXCLUDED.forecast, economics_calendar.forecast),
+                        previous = COALESCE(EXCLUDED.previous, economics_calendar.previous)
+                    """,
+                    dt,
+                    ev.get("is_all_day", False),
+                    ev.get("currency"),
+                    ev.get("impact"),
+                    event_name,
+                    ev.get("actual"),
+                    ev.get("forecast"),
+                    ev.get("previous"),
+                )
 
 
 # --- helpers ---

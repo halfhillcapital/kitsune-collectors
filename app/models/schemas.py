@@ -45,7 +45,6 @@ class EarningsCalendarItem(BaseModel):
     marketcap: float | None = None
     event_name: str | None = None
     date: datetime | None = None
-    timing: str | None = None
     eps_estimate: float | None = None
     reported_eps: float | None = None
     surprise_pct: float | None = None

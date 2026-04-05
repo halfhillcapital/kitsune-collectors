@@ -48,12 +48,12 @@ def _to_date(val) -> date | None:
         return None
 
 
-def _fetch_earnings_raw() -> dict[date, dict[str, list[dict]]]:
-    """Synchronous yfinance fetch — returns dict[day, dict[company, list[item]]]."""
+def _fetch_earnings_raw() -> list[dict]:
+    """Synchronous yfinance fetch — returns flat list of earnings items."""
     yesterday = datetime.now() - timedelta(days=1)
     cal = yf.Calendars(start=yesterday)
 
-    result: dict[date, dict[str, list[dict]]] = {}
+    result: list[dict] = []
     offset = 0
     while True:
         df = cal.get_earnings_calendar(
@@ -62,24 +62,26 @@ def _fetch_earnings_raw() -> dict[date, dict[str, list[dict]]]:
         )
         if df is None or df.empty:
             break
+        log.debug("Earnings columns: %s", list(df.columns))
         records = _df_to_records(df)
+        if records:
+            log.debug("Sample earnings record: %s", records[0])
         for r in records:
             sym = r.get("Symbol") or r.get("index", "")
-            company = r.get("Company") or sym
+            company = r.get("Company") or None
             item = {
                 "symbol": sym,
+                "company": company,
                 "marketcap": r.get("Marketcap"),
-                "event_name": r.get("Event Name"),
+                "event_name": r.get("Event Name") or None,
                 "date": r.get("Event Start Date"),
-                "timing": r.get("Timing"),
                 "eps_estimate": r.get("EPS Estimate"),
                 "reported_eps": r.get("Reported EPS"),
                 "surprise_pct": r.get("Surprise(%)"),
             }
-            key = _to_date(item["date"])
-            if key is None:
+            if _to_date(item["date"]) is None:
                 continue
-            result.setdefault(key, {}).setdefault(company, []).append(item)
+            result.append(item)
         if len(records) < 100:
             break
         offset += 100
@@ -95,24 +97,9 @@ async def sync_earnings_calendar() -> None:
             return
 
         await write_earnings_calendar(data)
-        total = sum(len(e) for day in data.values() for e in day.values())
-        log.info("Synced %d earnings calendar items across %d days", total, len(data))
+        log.info("Synced %d earnings calendar items", len(data))
     except Exception:
         log.error("Failed to sync earnings calendar", exc_info=True)
-
-
-def _parse_day(val) -> date | None:
-    """Coerce a value to a date object. Accepts date, datetime, or ISO string."""
-    if val is None:
-        return None
-    if isinstance(val, datetime):
-        return val.date()
-    if isinstance(val, date):
-        return val
-    try:
-        return date.fromisoformat(str(val)[:10])
-    except (ValueError, TypeError):
-        return None
 
 
 def _fetch_economics_raw() -> list[dict]:
@@ -134,16 +121,8 @@ async def sync_economics_calendar() -> None:
             log.warning("No economic events found in calendar data")
             return
 
-        by_day: dict[date, list[dict]] = {}
-        for ev in events:
-            dt = ev.get("date")
-            day = dt.date() if isinstance(dt, datetime) else _parse_day(dt)
-            if day is None:
-                continue
-            by_day.setdefault(day, []).append(ev)
-
-        await write_economics_calendar(by_day)
-        log.info("Synced %d economic events across %d days", len(events), len(by_day))
+        await write_economics_calendar(events)
+        log.info("Synced %d economic events", len(events))
     except Exception:
         log.error("Failed to sync economic events calendar", exc_info=True)
 
