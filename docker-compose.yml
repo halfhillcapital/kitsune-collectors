@@ -16,7 +16,7 @@ services:
       timeout: 3s
       retries: 5
 
-  app:
+  marimo:
     build: .
     restart: unless-stopped
     ports:
